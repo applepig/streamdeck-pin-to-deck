@@ -6,6 +6,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Authors>applepig</Authors>
+    <Description>Stream Deck Plugin for pinning Windows applications</Description>
+    <RepositoryUrl>https://github.com/applepig/streamdeck-pin-to-deck</RepositoryUrl>
+    <Version>0.1.0</Version>
     
     <!-- Stream Deck Plugin 輸出設定 removed to let dev.ps1 handle deployment -->
   </PropertyGroup>

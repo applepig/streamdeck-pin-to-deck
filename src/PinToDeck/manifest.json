@@ -1,12 +1,12 @@
 {
-    "Name": "Pin Windows App to Deck",
+    "Name": "Pin to Deck",
     "Version": "0.1.0",
-    "Author": "User",
+    "Author": "applepig",
     "Category": "Pin to Deck",
     "CategoryIcon": "Images/categoryIcon",
-    "Description": "Show and control Windows/UWP apps taskbar status on Stream Deck Neo.",
+    "Description": "Your physical Windows Taskbar. Pin apps, check running status at a glance, and cycle through windows with a single tap. Supports both Win32 & modern UWP apps.",
     "Icon": "Images/pluginIcon",
-    "URL": "https://github.com/applepig/pin-to-deck",
+    "URL": "https://github.com/applepig/streamdeck-pin-to-deck",
     "UUID": "tw.idv.applepig.pin-to-deck",
     "CodePath": "PinToDeck.exe",
     "OS": [
