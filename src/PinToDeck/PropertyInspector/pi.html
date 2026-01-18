@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Pin to Deck Property Inspector</title>
+    <script src="sdpi-components.js"></script>
+    <style>
+        #debug-console {
+            margin-top: 10px;
+            padding: 5px;
+            background: #000;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 8pt;
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            word-wrap: break-word;
+        }
+
+        #build-info {
+            color: #666;
+            font-size: 7pt;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 3px;
+        }
+
+        details {
+            margin-bottom: 12px;
+        }
+
+        details summary {
+            cursor: pointer;
+            font-weight: bold;
+            padding: 8px 0;
+            user-select: none;
+        }
+
+        details[open] summary {
+            margin-bottom: 8px;
+        }
+
+        .section-desc {
+            color: #999;
+            font-size: 9pt;
+            margin: -4px 0 12px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ========== APPLICATION ========== -->
+    <details open>
+        <summary>Application</summary>
+        <div class="section-desc">Choose which application to pin to this key</div>
+
+        <sdpi-item label="Type">
+            <sdpi-radio id="app-type-selector" setting="app_type" layout="row">
+                <option value="select">Select App</option>
+                <option value="custom">Customize</option>
+            </sdpi-radio>
+        </sdpi-item>
+
+        <div id="select-section">
+            <sdpi-item label="App">
+                <sdpi-select id="app-selector" setting="app_id" datasource="getAppList" loading="Loading apps...">
+                </sdpi-select>
+            </sdpi-item>
+        </div>
+
+        <div id="custom-section" style="display:none">
+            <sdpi-item label="Path">
+                <sdpi-textfield id="custom-path" setting="app_id" placeholder="C:\Windows\notepad.exe">
+                </sdpi-textfield>
+            </sdpi-item>
+            <sdpi-item label="Arguments">
+                <sdpi-textfield id="app-args" setting="app_args" placeholder="-arg1">
+                </sdpi-textfield>
+            </sdpi-item>
+        </div>
+    </details>
+
+    <!-- ========== APPEARANCE ========== -->
+    <details open>
+        <summary>Appearance</summary>
+        <div class="section-desc">Customize how the key looks</div>
+
+        <sdpi-item label="Badge Position">
+            <sdpi-select setting="badge_position">
+                <option value="0">Top Right</option>
+                <option value="1" selected>Bottom Right</option>
+                <option value="2">Bottom Left</option>
+                <option value="3">Top Left</option>
+                <option value="4">Hidden</option>
+            </sdpi-select>
+        </sdpi-item>
+    </details>
+
+    <!-- ========== BEHAVIOR ========== -->
+    <details open>
+        <summary>Behavior</summary>
+        <div class="section-desc">Configure key press actions and window switching</div>
+
+        <sdpi-item label="Window Switching">
+            <sdpi-checkbox setting="show_overlay" label="Show window title overlay" checked></sdpi-checkbox>
+        </sdpi-item>
+
+        <sdpi-item label="">
+            <sdpi-checkbox setting="enable_window_cycling" label="Enable multi-window cycling" checked></sdpi-checkbox>
+        </sdpi-item>
+
+        <sdpi-item label="Long Press Action">
+            <sdpi-select setting="long_press_action">
+                <option value="0" selected>Do Nothing</option>
+                <option value="1">Open New Instance</option>
+                <option value="2">Quit Application</option>
+                <option value="3">Force Stop</option>
+            </sdpi-select>
+        </sdpi-item>
+    </details>
+
+    <!-- ========== HELP & DEBUG ========== -->
+    <sdpi-item>
+        <details>
+            <summary>Help</summary>
+            <p><strong>Short Press:</strong> Launch app / Switch to window / Cycle windows</p>
+            <p><strong>Long Press:</strong> Configurable action (see Long Press Action above)</p>
+            <p><strong>Badge:</strong> Shows window count when app has multiple windows</p>
+            <p id="status-message"></p>
+        </details>
+    </sdpi-item>
+
+    <sdpi-item>
+        <details open>
+            <summary>Debug</summary>
+            <div id="build-info"></div>
+            <div id="debug-console"></div>
+        </details>
+    </sdpi-item>
+
+    <script src="pi.js"></script>
+</body>
+
+</html>

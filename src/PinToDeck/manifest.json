@@ -1,0 +1,40 @@
+{
+    "Name": "Pin Windows App to Deck",
+    "Version": "0.1.0",
+    "Author": "User",
+    "Category": "Pin to Deck",
+    "CategoryIcon": "Images/categoryIcon",
+    "Description": "Show and control Windows/UWP apps taskbar status on Stream Deck Neo.",
+    "Icon": "Images/pluginIcon",
+    "URL": "https://github.com/applepig/pin-to-deck",
+    "UUID": "tw.idv.applepig.pin-to-deck",
+    "CodePath": "PinToDeck.exe",
+    "OS": [
+        {
+            "Platform": "windows",
+            "MinimumVersion": "10"
+        }
+    ],
+    "Software": {
+        "MinimumVersion": "6.0"
+    },
+    "SDKVersion": 2,
+    "Actions": [
+        {
+            "UUID": "tw.idv.applepig.pin-to-deck.action",
+            "Name": "Pin App",
+            "Tooltip": "Pin an application to this key",
+            "Icon": "Images/actionIcon",
+            "PropertyInspectorPath": "PropertyInspector/pi.html",
+            "States": [
+                {
+                    "Image": "Images/actionState"
+                }
+            ],
+            "SupportedInMultiActions": false,
+            "Controllers": [
+                "Keypad"
+            ]
+        }
+    ]
+}

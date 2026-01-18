@@ -1,0 +1,75 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <!-- Stream Deck Plugin 輸出設定 removed to let dev.ps1 handle deployment -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StreamDeck-Tools" Version="6.3.2" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.1" />
+    <PackageReference Include="WindowsAPICodePackShell" Version="8.0.14" />
+  </ItemGroup>
+
+  <!-- 複製 manifest.json 和 Images 到輸出目錄 -->
+  <ItemGroup>
+    <None Update="manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Images\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="PropertyInspector\**\*">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <UsingTask TaskName="ReplaceFileText" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <InputFilename ParameterType="System.String" Required="true" />
+      <OutputFilename ParameterType="System.String" Required="true" />
+      <MatchExpression ParameterType="System.String" Required="true" />
+      <ReplacementText ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          try {
+            if (File.Exists(InputFilename)) {
+              string content = File.ReadAllText(InputFilename);
+              string newContent = Regex.Replace(content, MatchExpression, ReplacementText);
+              if (content != newContent) {
+                  File.WriteAllText(OutputFilename, newContent);
+                  Log.LogMessage(MessageImportance.High, "Replaced " + MatchExpression + " with " + ReplacementText + " in " + OutputFilename);
+              }
+            } else {
+              Log.LogWarning("File not found for replacement: " + InputFilename);
+            }
+          } catch (Exception ex) {
+            Log.LogErrorFromException(ex);
+          }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="UpdateBuildTimestamp" AfterTargets="CopyFilesToOutputDirectory">
+    <PropertyGroup>
+      <BuildTimestamp>$([System.DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))</BuildTimestamp>
+    </PropertyGroup>
+    <ReplaceFileText 
+      InputFilename="$(OutputPath)PropertyInspector\pi.js" 
+      OutputFilename="$(OutputPath)PropertyInspector\pi.js" 
+      MatchExpression="__BUILD_TIMESTAMP__" 
+      ReplacementText="$(BuildTimestamp)" />
+  </Target>
+
+</Project>

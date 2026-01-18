@@ -1,0 +1,35 @@
+# .NET Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# Keep only source code, exclude build artifacts
+src/PinToDeck/obj/
+src/PinToDeck/bin/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.cache
+
+# NuGet
+*.nupkg
+packages/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Agent workflows
+.agent/
+
+# Test project build outputs
+tests/*/bin/
+tests/*/obj/

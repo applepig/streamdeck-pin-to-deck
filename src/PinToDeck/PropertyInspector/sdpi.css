@@ -1,0 +1,121 @@
+/* sdpi.css - Stream Deck Property Inspector Native Style */
+
+:root {
+    --sdpi-width: 259px;
+    --sdpi-radius: 4px;
+    --sdpi-fontsize: 9pt;
+    --sdpi-bg-color: #2d2d2d;
+    --sdpi-text-color: #9b9b9b;
+    --sdpi-input-bg: #3d3d3d;
+    --sdpi-border-color: #5d5d5d;
+    --sdpi-item-height: 40px;
+}
+
+body {
+    background-color: var(--sdpi-bg-color);
+    color: var(--sdpi-text-color);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--sdpi-fontsize);
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-x: hidden;
+}
+
+/* Scrollbar Style */
+::-webkit-scrollbar {
+    width: 9px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    background-clip: content-box;
+    background-color: #666;
+    border-radius: 5px;
+}
+
+.sdpi-wrapper {
+    /* No strict width constraint, adapt to container */
+    padding: 0;
+}
+
+/* SDPI Item Row */
+.sdpi-item {
+    display: flex;
+    align-items: center;
+    min-height: var(--sdpi-item-height);
+    padding: 10px 10px 0 10px;
+    /* Top padding for spacing between items */
+    box-sizing: border-box;
+}
+
+.sdpi-item-label {
+    width: 70px !important;
+    /* Standard label width */
+    margin-right: 8px;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
+.sdpi-item-value {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* Inputs and Selects */
+.sdpi-item-value input[type="text"],
+.sdpi-item-value select {
+    width: 100%;
+    height: 26px;
+    border: 1px solid #646464;
+    border-radius: var(--sdpi-radius);
+    background-color: var(--sdpi-input-bg);
+    color: #d8d8d8;
+    font-size: var(--sdpi-fontsize);
+    font-family: inherit;
+    padding: 2px 5px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.sdpi-item-value select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239b9b9b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 7px top 50%;
+    background-size: 10px auto;
+    padding-right: 20px;
+}
+
+.sdpi-item-value input:focus,
+.sdpi-item-value select:focus {
+    border-color: #3d89ff;
+    /* Focus Blue */
+}
+
+/* Details / Info Area */
+details {
+    padding: 10px;
+    font-size: 0.8em;
+    color: #888;
+    line-height: 1.4;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #444;
+    margin: 10px 0;
+}
