@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore src/PinToDeck/PinToDeck.csproj
+
+    - name: Build
+      run: dotnet build src/PinToDeck/PinToDeck.csproj --no-restore --configuration Release
+
+    - name: Run Tests
+      run: dotnet test tests/PinToDeck.Tests/PinToDeck.Tests.csproj --no-build --configuration Release
+
+    - name: Prepare Plugin Directory
+      run: |
+        $pluginId = "tw.idv.applepig.pin-to-deck"
+        $publishDir = "publish"
+        $pluginDir = "$publishDir\$pluginId.sdPlugin"
+        
+        # Create directory
+        New-Item -ItemType Directory -Path $pluginDir -Force
+        
+        # Copy build output
+        $buildOutput = "src/PinToDeck/bin/Release/net8.0-windows"
+        Copy-Item "$buildOutput\*" -Destination $pluginDir -Recurse -Force
+        
+        # Verify structure
+        if (-not (Test-Path "$pluginDir\manifest.json")) {
+           Write-Error "manifest.json missing from plugin directory!"
+           exit 1
+        }
+        
+    - name: Download DistributionTool
+      run: |
+        $toolUrl = "https://developer.elgato.com/documentation/stream-deck/sdk/exporting-your-plugin/DistributionTool.exe"
+        Invoke-WebRequest -Uri $toolUrl -OutFile "DistributionTool.exe"
+        
+    - name: Pack Plugin
+      run: |
+        $pluginId = "tw.idv.applepig.pin-to-deck"
+        $publishDir = "publish"
+        $pluginDir = "$publishDir\$pluginId.sdPlugin"
+        
+        .\DistributionTool.exe -b -i $pluginDir -o $publishDir
+        
+        $outputFile = "$publishDir\$pluginId.streamDeckPlugin"
+        if (-not (Test-Path $outputFile)) {
+            Write-Error "DistributionTool failed to create plugin package."
+            exit 1
+        }
+        echo "PLUGIN_PACKAGE=$outputFile" >> $env:GITHUB_ENV
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          publish/*.streamDeckPlugin
+        draft: false
+        prerelease: false
+        generate_release_notes: true
