@@ -39,6 +39,28 @@ function updateSections(type) {
     }
 }
 
+/**
+ * Update show overlay checkbox state based on window cycling action
+ */
+function updateShowOverlayState() {
+    const cyclingSelect = document.querySelector('sdpi-select[setting="window_cycling_action"]');
+    const overlayCheckbox = document.querySelector('sdpi-checkbox[setting="enable_show_overlay"]');
+
+    if (cyclingSelect && overlayCheckbox) {
+        const action = cyclingSelect.value || '0';
+
+        if (action === '2') {
+            // Disable overlay checkbox when action is "Do nothing"
+            overlayCheckbox.setAttribute('disabled', '');
+            log('Show overlay disabled (cycling action is "Do nothing")');
+        } else {
+            // Enable overlay checkbox for other actions
+            overlayCheckbox.removeAttribute('disabled');
+            log(`Show overlay enabled (cycling action is "${action}")`);
+        }
+    }
+}
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     showBuildInfo();
@@ -70,6 +92,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         observer.observe(typeSelector, { attributes: true });
+    }
+
+    // Handle window cycling action changes
+    const cyclingSelect = document.querySelector('sdpi-select[setting="window_cycling_action"]');
+    if (cyclingSelect) {
+        // Initial state
+        updateShowOverlayState();
+
+        // Listen for changes
+        cyclingSelect.addEventListener('change', () => {
+            log(`Window cycling action changed to: ${cyclingSelect.value}`);
+            updateShowOverlayState();
+        });
+
+        // Watch for attribute changes (when settings are loaded)
+        const cyclingObserver = new MutationObserver(() => {
+            updateShowOverlayState();
+        });
+        cyclingObserver.observe(cyclingSelect, { attributes: true });
     }
 });
 

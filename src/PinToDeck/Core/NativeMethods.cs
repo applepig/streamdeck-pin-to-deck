@@ -93,11 +93,28 @@ namespace PinToDeck.Core
         }
 
         // ShowWindow constants
+        public const int SW_HIDE = 0;
         public const int SW_RESTORE = 9;
         public const int SW_SHOW = 5;
         public const int SW_MINIMIZE = 6;
         public const int SW_SHOWNOACTIVATE = 4;
         public const int SW_SHOWMINNOACTIVE = 7;
+
+        // FindWindow - Used to find Shell (Taskbar) window
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+        // Console APIs for AllocConsole hack
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AllocConsole();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool FreeConsole();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr GetConsoleWindow();
 
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -205,5 +222,86 @@ namespace PinToDeck.Core
         public const uint FLASHW_ALL = 3;
         public const uint FLASHW_TIMER = 4;
         public const uint FLASHW_TIMERNOFG = 12;
+
+        // ============================================
+        // SendInput API - More reliable than keybd_event
+        // Bypasses application-level keyboard hooks
+        // ============================================
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT
+        {
+            public uint type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        public struct InputUnion
+        {
+            [FieldOffset(0)] public MOUSEINPUT mi;
+            [FieldOffset(0)] public KEYBDINPUT ki;
+            [FieldOffset(0)] public HARDWAREINPUT hi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct HARDWAREINPUT
+        {
+            public uint uMsg;
+            public ushort wParamL;
+            public ushort wParamH;
+        }
+
+        public const uint INPUT_KEYBOARD = 1;
+        public const uint KEYEVENTF_SCANCODE = 0x0008;
+
+        /// <summary>
+        /// LockSetForegroundWindow - Enables or disables calls to SetForegroundWindow.
+        /// LSFW_LOCK (1) = Disables calls to SetForegroundWindow by processes other than the calling process
+        /// LSFW_UNLOCK (2) = Enables calls to SetForegroundWindow
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool LockSetForegroundWindow(uint uLockCode);
+
+        public const uint LSFW_LOCK = 1;
+        public const uint LSFW_UNLOCK = 2;
+
+        /// <summary>
+        /// SystemParametersInfo - Can be used to modify ForegroundLockTimeout
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref uint pvParam, uint fWinIni);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+
+        public const uint SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000;
+        public const uint SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001;
     }
 }

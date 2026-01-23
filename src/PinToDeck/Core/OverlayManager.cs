@@ -142,6 +142,12 @@ namespace PinToDeck.Core
 
         public void ShowNotification(string text)
         {
+            // Debug: If text is empty, show a placeholder
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = "[DEBUG: Empty Title]";
+            }
+
             // If we are hidden, show
             if (!this.Visible)
             {
@@ -151,18 +157,28 @@ namespace PinToDeck.Core
             }
 
             _lblText.Text = text;
-            _timer.Stop();
-            _timer.Start();
 
-            // Re-center if text is very long? 
-            // Current implementation has fixed width. 
-            // Let's just keep it simple.
+            // Ensure timer is completely stopped before restarting
+            _timer.Stop();
+            _timer.Enabled = false;
+
+            // Restart timer
+            _timer.Enabled = true;
+            _timer.Start();
         }
 
         private void HideOverlay()
         {
-            this.Visible = false;
-            _timer.Stop();
+            try
+            {
+                this.Visible = false;
+                _timer.Stop();
+                _timer.Enabled = false;
+            }
+            catch
+            {
+                // Ensure we always try to hide, even if there's an exception
+            }
         }
     }
 }

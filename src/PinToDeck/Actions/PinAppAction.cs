@@ -28,7 +28,7 @@ namespace PinToDeck.Actions
                     AppArgs = string.Empty,
                     BadgePosition = BadgePosition.BottomRight,
                     ShowOverlay = true,
-                    EnableWindowCycling = true,
+                    WindowCyclingAction = WindowCyclingAction.SwitchWithinApp,
                     LongPressAction = LongPressAction.DoNothing
                 };
                 return instance;
@@ -46,11 +46,11 @@ namespace PinToDeck.Actions
             [JsonProperty(PropertyName = "badge_position")]
             public BadgePosition BadgePosition { get; set; } = BadgePosition.BottomRight;
 
-            [JsonProperty(PropertyName = "show_overlay")]
+            [JsonProperty(PropertyName = "enable_show_overlay")]
             public bool ShowOverlay { get; set; } = true;
 
-            [JsonProperty(PropertyName = "enable_window_cycling")]
-            public bool EnableWindowCycling { get; set; } = true;
+            [JsonProperty(PropertyName = "window_cycling_action")]
+            public WindowCyclingAction WindowCyclingAction { get; set; } = WindowCyclingAction.SwitchWithinApp;
 
             [JsonProperty(PropertyName = "long_press_action")]
             public LongPressAction LongPressAction { get; set; } = LongPressAction.DoNothing;
@@ -226,9 +226,25 @@ namespace PinToDeck.Actions
 
         private void ExecuteShortPress()
         {
+            // DEBUG: Simple file logging
+            try
+            {
+                string debugLog = $"c:\\temp\\pintodeck_debug.txt";
+                System.IO.File.AppendAllText(debugLog, $"{DateTime.Now:HH:mm:ss.fff} - ExecuteShortPress called for {settings.AppId}\n");
+            }
+            catch { }
+
             // Get current state from cache directly for logic
             (var state, var count) = WindowCacheManager.Instance.GetCachedState(settings.AppId);
             Logger.Instance.LogMessage(TracingLevel.INFO, $"ExecuteShortPress: {settings.AppId}, State={state}, Count={count}");
+
+            // DEBUG: Log state to file
+            try
+            {
+                string debugLog = $"c:\\temp\\pintodeck_debug.txt";
+                System.IO.File.AppendAllText(debugLog, $"{DateTime.Now:HH:mm:ss.fff} - State={state}, Count={count}\n");
+            }
+            catch { }
 
             switch (state)
             {
@@ -265,17 +281,21 @@ namespace PinToDeck.Actions
 
                 case AppState.Foreground:
                     // Sprint 05: Session-based Window Cycling (Snapshot Strategy)
+                    Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Foreground state detected. ShowOverlay={settings.ShowOverlay}, WindowCyclingAction={settings.WindowCyclingAction}");
 
-                    // If window cycling is disabled, just show overlay for current window
-                    if (!settings.EnableWindowCycling)
+                    // DEBUG: File log
+                    try
                     {
-                        Logger.Instance.LogMessage(TracingLevel.INFO, "[Cycle] Disabled by user setting.");
-                        if (settings.ShowOverlay)
-                        {
-                            var fgHwnd = WindowManager.Instance.GetForegroundWindow();
-                            string winTitle = WindowManager.Instance.GetWindowTitle(fgHwnd);
-                            OverlayManager.Instance.Show(winTitle);
-                        }
+                        System.IO.File.AppendAllText("c:\\temp\\pintodeck_debug.txt",
+                            $"{DateTime.Now:HH:mm:ss.fff} - FOREGROUND: ShowOverlay={settings.ShowOverlay}, WindowCyclingAction={settings.WindowCyclingAction}\n");
+                    }
+                    catch { }
+
+                    // Handle different window cycling actions
+                    if (settings.WindowCyclingAction == WindowCyclingAction.DoNothing)
+                    {
+                        Logger.Instance.LogMessage(TracingLevel.INFO, "[Cycle] Action is DoNothing.");
+                        // Do nothing when app is already foreground
                         break;
                     }
 
@@ -290,6 +310,7 @@ namespace PinToDeck.Actions
                         // Snapshot current windows z-order
                         var currentWindows = WindowManager.Instance.GetWindowsByAppIdCached(settings.AppId);
                         _sessionWindows = currentWindows.Select(w => w.Handle).ToList();
+                        Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Found {_sessionWindows.Count} windows for {settings.AppId}");
 
                         // Find current index
                         _sessionIndex = _sessionWindows.IndexOf(currentHwnd);
@@ -304,32 +325,54 @@ namespace PinToDeck.Actions
                         if (settings.ShowOverlay && _sessionWindows.Count == 1)
                         {
                             string winTitle = WindowManager.Instance.GetWindowTitle(_sessionWindows[0]);
+                            Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Showing overlay for single window: {winTitle}");
                             OverlayManager.Instance.Show(winTitle);
                         }
                         break;
                     }
 
-                    // Move to next index
-                    _sessionIndex = (_sessionIndex + 1) % _sessionWindows.Count;
-                    targetHwnd = _sessionWindows[_sessionIndex];
+                    if (settings.WindowCyclingAction == WindowCyclingAction.SwitchToLast)
+                    {
+                        // SwitchToLast: Always switch to the first window (index 0) in Z-order
+                        // This simulates Alt+Tab behavior where you always go to the "last" active window
+                        Logger.Instance.LogMessage(TracingLevel.INFO, "[Cycle] SwitchToLast: Always switching to first window in list.");
+                        _sessionIndex = 0;
+                        targetHwnd = _sessionWindows[0];
+                    }
+                    else
+                    {
+                        // SwitchWithinApp: Cycle through all windows
+                        _sessionIndex = (_sessionIndex + 1) % _sessionWindows.Count;
+                        targetHwnd = _sessionWindows[_sessionIndex];
+                    }
 
                     if (targetHwnd != IntPtr.Zero)
                     {
                         _lastCycleTime = DateTime.Now; // Update timestamp
                         Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Switching to Index {_sessionIndex}/{_sessionWindows.Count} (0x{targetHwnd:X})");
+
+                        // Get window title BEFORE switching (to avoid race condition)
+                        string winTitle = WindowManager.Instance.GetWindowTitle(targetHwnd);
+                        Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Target window title: '{winTitle}', ShowOverlay={settings.ShowOverlay}");
+
                         WindowManager.Instance.BringWindowToForeground(targetHwnd);
 
                         // Trigger overlay if enabled
                         if (settings.ShowOverlay)
                         {
-                            string winTitle = WindowManager.Instance.GetWindowTitle(targetHwnd);
+                            Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Calling OverlayManager.Show('{winTitle}')");
                             OverlayManager.Instance.Show(winTitle);
+                        }
+                        else
+                        {
+                            Logger.Instance.LogMessage(TracingLevel.WARN, "[Cycle] ShowOverlay is FALSE, skipping overlay");
                         }
                     }
                     else if (settings.ShowOverlay && currentHwnd != IntPtr.Zero)
                     {
                         // Fallback: If for some reason we didn't switch but are foreground, show current title
                         string winTitle = WindowManager.Instance.GetWindowTitle(currentHwnd);
+                        Logger.Instance.LogMessage(TracingLevel.INFO, $"[Cycle] Fallback: Showing overlay for current window: {winTitle}");
                         OverlayManager.Instance.Show(winTitle);
                     }
                     break;
@@ -376,6 +419,31 @@ namespace PinToDeck.Actions
             BadgePosition oldBadgePosition = settings.BadgePosition;
 
             Tools.AutoPopulateSettings(settings, payload.Settings);
+
+            // MIGRATION: Ensure new settings have correct defaults
+            // If these properties are not in the saved settings, they will be false (default bool value)
+            // We need to check if they were explicitly set or just defaulted
+            bool needsMigration = false;
+
+            if (payload.Settings["enable_show_overlay"] == null)
+            {
+                settings.ShowOverlay = true; // Default to true
+                needsMigration = true;
+            }
+
+            if (payload.Settings["window_cycling_action"] == null)
+            {
+                settings.WindowCyclingAction = WindowCyclingAction.SwitchWithinApp; // Default
+                needsMigration = true;
+            }
+
+            // Save migrated settings back to Stream Deck
+            if (needsMigration)
+            {
+                Logger.Instance.LogMessage(TracingLevel.INFO, $"[Migration] Updated settings: ShowOverlay={settings.ShowOverlay}, WindowCyclingAction={settings.WindowCyclingAction}");
+                _ = Connection.SetSettingsAsync(JObject.FromObject(settings));
+            }
+
             Logger.Instance.LogMessage(TracingLevel.INFO, $"Settings loaded: AppId={settings.AppId}");
 
             // Only update if AppId changed

@@ -83,6 +83,59 @@ namespace PinToDeck.Core
             return false;
         }
 
+        /// <summary>
+        /// Detects if the given window belongs to Windows Terminal.
+        /// This is used to apply special focus-stealing workarounds.
+        /// </summary>
+        public bool IsWindowsTerminal(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return false;
+
+            // Check AUMID
+            NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
+            string? aumid = GetAumidFromProcess(processId);
+
+            if (aumid != null && aumid.Contains("Microsoft.WindowsTerminal", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Fallback to class name check (CASCADIA_HOSTING_WINDOW_CLASS is common for Terminal)
+            StringBuilder sbClass = new StringBuilder(256);
+            NativeMethods.GetClassName(hWnd, sbClass, 256);
+            string className = sbClass.ToString();
+
+            if (className.Equals("CASCADIA_HOSTING_WINDOW_CLASS", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Fallback to process path
+            IntPtr hProcess = NativeMethods.OpenProcess(NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+            if (hProcess != IntPtr.Zero)
+            {
+                try
+                {
+                    StringBuilder buffer = new StringBuilder(1024);
+                    int size = buffer.Capacity;
+                    if (NativeMethods.QueryFullProcessImageName(hProcess, 0, buffer, ref size))
+                    {
+                        string path = buffer.ToString();
+                        if (path.EndsWith("WindowsTerminal.exe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                finally
+                {
+                    NativeMethods.CloseHandle(hProcess);
+                }
+            }
+
+            return false;
+        }
+
         public List<WindowInfo> GetWindowsByAppIdCached(string appId)
         {
             if (string.IsNullOrEmpty(appId)) return new List<WindowInfo>();
@@ -342,7 +395,7 @@ namespace PinToDeck.Core
         /// <summary>
         /// Enhanced Bring Window to Foreground
         /// Uses multiple strategies to overcome Windows' anti-focus-stealing protection.
-        /// Particularly important for system tray apps like Everything.
+        /// Special handling for Terminal/Browser that capture keyboard events.
         /// </summary>
         public void BringWindowToForeground(IntPtr hwnd)
         {
@@ -355,7 +408,8 @@ namespace PinToDeck.Core
                 return;
             }
 
-            Logger.Instance.LogMessage(TracingLevel.INFO, $"[WindowManager] Attempting to bring 0x{hwnd:X} to foreground...");
+            bool isSourceTerminalOrBrowser = IsInputCapturingApp(currentForeground);
+            Logger.Instance.LogMessage(TracingLevel.INFO, $"[WindowManager] Attempting to bring 0x{hwnd:X} to foreground (Source captures input: {isSourceTerminalOrBrowser})...");
 
             // Get thread IDs
             uint foregroundThreadId = NativeMethods.GetWindowThreadProcessId(currentForeground, out _);
@@ -364,20 +418,70 @@ namespace PinToDeck.Core
 
             bool attachedToForeground = false;
             bool attachedToTarget = false;
+            bool attachedToShell = false;
+            uint shellThreadId = 0;
+            uint originalTimeout = 0;
+            bool timeoutModified = false;
 
             try
             {
-                // Strategy 1: Simulate Alt key press/release to gain foreground activation rights
-                // This is a well-known workaround - pressing Alt gives temporary permission to SetForegroundWindow
-                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 1: Simulating Alt key...");
-                NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, NativeMethods.KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
-                NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, NativeMethods.KEYEVENTF_EXTENDEDKEY | NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
+                // Strategy 0: Disable Windows' ForegroundLockTimeout temporarily
+                // This is the most reliable way to bypass focus stealing prevention
+                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 0: Disabling ForegroundLockTimeout...");
+                if (NativeMethods.SystemParametersInfo(NativeMethods.SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ref originalTimeout, 0))
+                {
+                    if (originalTimeout > 0)
+                    {
+                        // Set timeout to 0 to allow immediate focus changes
+                        NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, 0);
+                        timeoutModified = true;
+                        Logger.Instance.LogMessage(TracingLevel.DEBUG, $"[WindowManager] Original timeout was {originalTimeout}, set to 0");
+                    }
+                }
 
-                // Strategy 2: Allow target process to set foreground window
+                // Strategy 1: Attach to Shell (Taskbar) thread instead of foreground
+                // The Shell always has permission to set foreground window
+                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 1: Attaching to Shell thread...");
+                IntPtr shellWindow = NativeMethods.FindWindow("Shell_TrayWnd", null);
+                if (shellWindow != IntPtr.Zero)
+                {
+                    shellThreadId = NativeMethods.GetWindowThreadProcessId(shellWindow, out _);
+                    if (shellThreadId != 0 && shellThreadId != currentThreadId)
+                    {
+                        attachedToShell = NativeMethods.AttachThreadInput(currentThreadId, shellThreadId, true);
+                        Logger.Instance.LogMessage(TracingLevel.DEBUG, $"[WindowManager] Attached to Shell thread: {attachedToShell}");
+                    }
+                }
+
+                // Strategy 2: Use AllocConsole hack for input-capturing apps
+                // Creating a console window resets focus-granting status
+                if (isSourceTerminalOrBrowser)
+                {
+                    Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 2: AllocConsole hack...");
+                    bool consoleAllocated = NativeMethods.AllocConsole();
+                    if (consoleAllocated)
+                    {
+                        // Hide the console window immediately
+                        IntPtr consoleWindow = NativeMethods.GetConsoleWindow();
+                        if (consoleWindow != IntPtr.Zero)
+                        {
+                            NativeMethods.ShowWindow(consoleWindow, NativeMethods.SW_HIDE);
+                        }
+                        NativeMethods.FreeConsole();
+                        Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] AllocConsole hack completed");
+                    }
+                }
+
+                // Strategy 3: Use SendInput for Alt key simulation
+                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 3: SendInput Alt key simulation...");
+                SimulateAltKeyWithSendInput();
+
+                // Strategy 4: Unlock and allow any process to set foreground window
+                NativeMethods.LockSetForegroundWindow(NativeMethods.LSFW_UNLOCK);
                 NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
 
-                // Strategy 3: Attach thread inputs for better success rate
-                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 3: Attaching thread inputs...");
+                // Strategy 5: Attach thread inputs for better success rate
+                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 5: Attaching thread inputs...");
                 if (foregroundThreadId != currentThreadId && foregroundThreadId != 0)
                 {
                     attachedToForeground = NativeMethods.AttachThreadInput(currentThreadId, foregroundThreadId, true);
@@ -387,7 +491,7 @@ namespace PinToDeck.Core
                     attachedToTarget = NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, true);
                 }
 
-                // Strategy 4: Get current window placement and restore appropriately
+                // Strategy 6: Get current window placement and restore appropriately
                 var placement = new NativeMethods.WINDOWPLACEMENT();
                 placement.length = System.Runtime.InteropServices.Marshal.SizeOf(placement);
                 NativeMethods.GetWindowPlacement(hwnd, ref placement);
@@ -397,31 +501,28 @@ namespace PinToDeck.Core
                 if (NativeMethods.IsIconic(hwnd) || placement.showCmd == NativeMethods.SW_MINIMIZE || placement.showCmd == NativeMethods.SW_SHOWMINNOACTIVE)
                 {
                     Logger.Instance.LogMessage(TracingLevel.INFO, "[WindowManager] Window is minimized, restoring...");
-                    // Use SW_RESTORE to maintain maximized state if it was maximized before minimizing
                     NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
                 }
                 else
                 {
-                    // Show the window if it's hidden
                     NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
                 }
 
-                // Strategy 5: Use SetWindowPos with TOPMOST flag, then remove it
-                // This is a powerful trick that often works when SetForegroundWindow fails
-                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 5: SetWindowPos TOPMOST trick...");
+                // Strategy 7: Use SetWindowPos with TOPMOST flag, then remove it
+                Logger.Instance.LogMessage(TracingLevel.DEBUG, "[WindowManager] Strategy 7: SetWindowPos TOPMOST trick...");
                 NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
                     NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_SHOWWINDOW);
                 NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0,
                     NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_SHOWWINDOW);
 
-                // Strategy 6: BringWindowToTop
+                // Strategy 8: BringWindowToTop
                 NativeMethods.BringWindowToTop(hwnd);
 
-                // Strategy 7: SetForegroundWindow
+                // Strategy 9: SetForegroundWindow
                 bool success = NativeMethods.SetForegroundWindow(hwnd);
                 Logger.Instance.LogMessage(TracingLevel.INFO, $"[WindowManager] SetForegroundWindow result: {success}");
 
-                // Strategy 8: If still not foreground, try SwitchToThisWindow
+                // Strategy 10: If still not foreground, try SwitchToThisWindow
                 IntPtr newForeground = NativeMethods.GetForegroundWindow();
                 if (newForeground != hwnd)
                 {
@@ -429,7 +530,7 @@ namespace PinToDeck.Core
                     NativeMethods.SwitchToThisWindow(hwnd, true);
                 }
 
-                // Strategy 9: Final check and SetActiveWindow + SetFocus as last resort
+                // Strategy 11: Final check and SetActiveWindow + SetFocus as last resort
                 newForeground = NativeMethods.GetForegroundWindow();
                 if (newForeground != hwnd)
                 {
@@ -444,7 +545,18 @@ namespace PinToDeck.Core
             }
             finally
             {
+                // Restore ForegroundLockTimeout if it was modified
+                if (timeoutModified)
+                {
+                    NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETFOREGROUNDLOCKTIMEOUT, 0, (IntPtr)originalTimeout, 0);
+                    Logger.Instance.LogMessage(TracingLevel.DEBUG, $"[WindowManager] Restored ForegroundLockTimeout to {originalTimeout}");
+                }
+
                 // Detach thread inputs
+                if (attachedToShell && shellThreadId != 0)
+                {
+                    NativeMethods.AttachThreadInput(currentThreadId, shellThreadId, false);
+                }
                 if (attachedToForeground)
                 {
                     NativeMethods.AttachThreadInput(currentThreadId, foregroundThreadId, false);
@@ -454,6 +566,84 @@ namespace PinToDeck.Core
                     NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, false);
                 }
             }
+        }
+
+        /// <summary>
+        /// Detects if the given window belongs to an app that captures keyboard input
+        /// (Terminal, Browser, etc.). These apps need special handling for focus switching.
+        /// </summary>
+        private bool IsInputCapturingApp(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return false;
+
+            // Check for Windows Terminal
+            if (IsWindowsTerminal(hWnd)) return true;
+
+            // Check for browsers and other input-capturing apps
+            NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
+
+            IntPtr hProcess = NativeMethods.OpenProcess(NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+            if (hProcess != IntPtr.Zero)
+            {
+                try
+                {
+                    StringBuilder buffer = new StringBuilder(1024);
+                    int size = buffer.Capacity;
+                    if (NativeMethods.QueryFullProcessImageName(hProcess, 0, buffer, ref size))
+                    {
+                        string path = buffer.ToString().ToLowerInvariant();
+
+                        // Known browsers and apps that capture keyboard input
+                        if (path.EndsWith("chrome.exe") ||
+                            path.EndsWith("msedge.exe") ||
+                            path.EndsWith("firefox.exe") ||
+                            path.EndsWith("brave.exe") ||
+                            path.EndsWith("opera.exe") ||
+                            path.EndsWith("vivaldi.exe") ||
+                            path.Contains("\\code.exe") ||   // VS Code
+                            path.Contains("\\cursor.exe") || // Cursor
+                            path.EndsWith("powershell.exe") ||
+                            path.EndsWith("pwsh.exe") ||
+                            path.EndsWith("cmd.exe") ||
+                            path.EndsWith("conhost.exe"))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                finally
+                {
+                    NativeMethods.CloseHandle(hProcess);
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Simulates Alt key press/release using SendInput API.
+        /// SendInput is more reliable than keybd_event as it's processed at a lower level.
+        /// </summary>
+        private void SimulateAltKeyWithSendInput()
+        {
+            var inputs = new NativeMethods.INPUT[2];
+
+            // Alt key down
+            inputs[0].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[0].U.ki.wVk = NativeMethods.VK_MENU;
+            inputs[0].U.ki.dwFlags = 0;
+            inputs[0].U.ki.time = 0;
+            inputs[0].U.ki.dwExtraInfo = UIntPtr.Zero;
+
+            // Alt key up
+            inputs[1].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[1].U.ki.wVk = NativeMethods.VK_MENU;
+            inputs[1].U.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+            inputs[1].U.ki.time = 0;
+            inputs[1].U.ki.dwExtraInfo = UIntPtr.Zero;
+
+            uint result = NativeMethods.SendInput(2, inputs, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+            Logger.Instance.LogMessage(TracingLevel.DEBUG, $"[WindowManager] SendInput Alt key result: {result} inputs sent");
         }
 
         /// <summary>

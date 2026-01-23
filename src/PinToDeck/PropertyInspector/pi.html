@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <title>Pin to Deck Property Inspector</title>
+    <link rel="stylesheet" href="sdpi.css">
     <script src="sdpi-components.js"></script>
     <style>
         #debug-console {
@@ -80,36 +81,6 @@
                 </sdpi-textfield>
             </sdpi-item>
         </div>
-    </details>
-
-    <!-- ========== APPEARANCE ========== -->
-    <details open>
-        <summary>Appearance</summary>
-        <div class="section-desc">Customize how the key looks</div>
-
-        <sdpi-item label="Badge Position">
-            <sdpi-select setting="badge_position">
-                <option value="0">Top Right</option>
-                <option value="1" selected>Bottom Right</option>
-                <option value="2">Bottom Left</option>
-                <option value="3">Top Left</option>
-                <option value="4">Hidden</option>
-            </sdpi-select>
-        </sdpi-item>
-    </details>
-
-    <!-- ========== BEHAVIOR ========== -->
-    <details open>
-        <summary>Behavior</summary>
-        <div class="section-desc">Configure key press actions and window switching</div>
-
-        <sdpi-item label="Window Switching">
-            <sdpi-checkbox setting="show_overlay" label="Show window title overlay" checked></sdpi-checkbox>
-        </sdpi-item>
-
-        <sdpi-item label="">
-            <sdpi-checkbox setting="enable_window_cycling" label="Enable multi-window cycling" checked></sdpi-checkbox>
-        </sdpi-item>
 
         <sdpi-item label="Long Press Action">
             <sdpi-select setting="long_press_action">
@@ -121,6 +92,34 @@
         </sdpi-item>
     </details>
 
+    <!-- ========== BEHAVIOR ========== -->
+    <details open>
+        <summary>Advanced</summary>
+        <div class="section-desc">Configure badge position and window switching</div>
+
+        <sdpi-item label="Badge Position">
+            <sdpi-select setting="badge_position">
+                <option value="0">Top Right</option>
+                <option value="1" selected>Bottom Right</option>
+                <option value="2">Bottom Left</option>
+                <option value="3">Top Left</option>
+                <option value="4">Hidden</option>
+            </sdpi-select>
+        </sdpi-item>
+
+        <sdpi-item label="Window Switching">
+            <sdpi-select setting="window_cycling_action">
+                <option value="0" selected>Switch within same-app windows</option>
+                <option value="1">Switch to last window</option>
+                <option value="2">Do nothing</option>
+            </sdpi-select>
+        </sdpi-item>
+
+        <sdpi-item label="Screen Overlay">
+            <sdpi-checkbox setting="enable_show_overlay" label="Show window title on screen" checked></sdpi-checkbox>
+        </sdpi-item>
+    </details>
+
     <!-- ========== HELP & DEBUG ========== -->
     <sdpi-item>
         <details>
@@ -129,14 +128,6 @@
             <p><strong>Long Press:</strong> Configurable action (see Long Press Action above)</p>
             <p><strong>Badge:</strong> Shows window count when app has multiple windows</p>
             <p id="status-message"></p>
-        </details>
-    </sdpi-item>
-
-    <sdpi-item>
-        <details open>
-            <summary>Debug</summary>
-            <div id="build-info"></div>
-            <div id="debug-console"></div>
         </details>
     </sdpi-item>
 
